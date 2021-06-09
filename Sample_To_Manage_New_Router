@@ -1,0 +1,119 @@
+/interface bridge add arp=proxy-arp name=bridge-local
+/interface ethernet set [ find default-name=ether1 ] advertise=10M-half,10M-full,100M-half,100M-full,1000M-half,1000M-full comment=WAN mac-address=6C:3B:6B:18:46:33 rx-flow-control=on tx-flow-control=on
+/interface ethernet set [ find default-name=ether2 ] advertise=10M-half,10M-full,100M-half,100M-full,1000M-half,1000M-full arp=proxy-arp comment="LAN" loop-protect=on
+/interface ethernet set [ find default-name=ether3 ] advertise=10M-half,10M-full,100M-half,100M-full,1000M-half,1000M-full comment="LAN"
+/interface ethernet set [ find default-name=ether4 ] advertise=10M-half,10M-full,100M-half,100M-full,1000M-half,1000M-full comment="LAN"
+/interface ethernet set [ find default-name=ether5 ] advertise=10M-half,10M-full,100M-half,100M-full,1000M-half,1000M-full comment="RESERVE"
+/interface wireless security-profiles set [ find default=yes ] supplicant-identity=MikroTik
+/interface wireless security-profiles add authentication-types=wpa2-psk eap-methods="" management-protection=allowed mode=dynamic-keys name=ap_bridge supplicant-identity="" wpa2-pre-shared-key=06111977
+/interface wireless set [ find default-name=wlan1 ] arp=proxy-arp band=2ghz-b/g/n disabled=no frequency=auto hide-ssid=no mode=ap-bridge security-profile=ap_bridge ssid=mishkanarushka
+/ip firewall layer7-protocol add name=deny_site regexp="^.+(youtube|vk|vkontakte|odnoklassniki|odnoklasniki|facebook|twitter|instagram|viber|whatsapp|ok|rutube|smotri).*\$"
+/ip pool add name=dhcp_pool ranges=172.16.22.20-172.16.22.254
+/ip dhcp-server add add-arp=yes address-pool=dhcp_pool authoritative=after-2sec-delay disabled=no interface=bridge-local lease-time=3d name=dhcp1
+/system logging action set 0 memory-lines=5000
+/interface bridge port add bridge=bridge-local interface=ether2
+/interface bridge port add bridge=bridge-local interface=ether3
+/interface bridge port add bridge=bridge-local interface=wlan1
+/interface bridge port add bridge=bridge-local interface=ether4
+/ip address add address=172.16.22.1/24 interface=bridge-local network=172.16.22.0
+/ip dhcp-client add disabled=no interface=ether1
+/ip dhcp-server lease add address=192.168.56.218 comment="USER" mac-address=D0:17:C2:9C:3D:D1 server=dhcp1
+/ip dhcp-server network add address=172.16.22.0/24 gateway=172.16.22.1
+/ip dns set servers=8.8.8.8
+/ip firewall address-list add address=185.22.152.0/22 comment=List_of_SPAMMERS list=List_of_SPAMMERS
+/ip firewall address-list add address=213.59.160.68 list=Trusted_IP_addresses_PING
+/ip firewall filter add action=accept chain=input connection-state=established in-interface=ether1
+/ip firewall filter add action=accept chain=input connection-state=related in-interface=ether1
+/ip firewall filter add action=accept chain=input dst-port=22 protocol=tcp
+/ip firewall filter add action=drop chain=input comment="drop ssh brute forcers BB" dst-port=22 protocol=tcp src-address-list=ssh_blacklist
+/ip firewall filter add action=add-src-to-address-list address-list=ssh_blacklist address-list-timeout=5d chain=input comment="BB brute_force" connection-state=new dst-port=22 protocol=tcp src-address-list=ssh_stage3
+/ip firewall filter add action=add-src-to-address-list address-list=ssh_stage3 address-list-timeout=5m chain=input comment="BB brute_force" connection-state=new dst-port=22 protocol=tcp src-address-list=ssh_stage2
+/ip firewall filter add action=add-src-to-address-list address-list=ssh_stage2 address-list-timeout=5m chain=input comment="BB brute_force" connection-state=new dst-port=22 protocol=tcp src-address-list=ssh_stage1
+/ip firewall filter add action=add-src-to-address-list address-list=ssh_stage1 address-list-timeout=5m chain=input comment="BB brute_force" connection-state=new dst-port=22 protocol=tcp
+/ip firewall filter add action=add-dst-to-address-list address-list=ftp_blacklist address-list-timeout=3h chain=output comment=brute_force content="530 Login incorrect" protocol=tcp
+/ip firewall filter add action=accept chain=input disabled=no dst-port=21 protocol=tcp
+/ip firewall filter add action=accept chain=input comment=Winbox dst-port=8291 protocol=tcp
+/ip firewall filter add action=accept chain=customer connection-state=established
+/ip firewall filter add action=accept chain=customer connection-state=related
+/ip firewall filter add action=accept chain=output content="530 Login incorrect" dst-limit=1/1m,9,dst-address/1m protocol=tcp
+/ip firewall filter add action=accept chain=forward out-interface=ether1
+/ip firewall filter add action=accept chain=input comment="allow related connections" connection-state=related
+/ip firewall filter add action=accept chain=input comment="allow established connections" connection-state=established
+/ip firewall filter add action=jump chain=forward in-interface=ether1 jump-target=customer
+/ip firewall filter add action=accept chain=input comment="icmp PING only private IP_addresses" protocol=icmp src-address-list=Trusted_IP_addresses_PING
+/ip firewall filter add action=drop chain=input comment="drop invalid connections" connection-state=invalid
+/ip firewall filter add action=drop chain=input comment="drop everything else" in-interface=ether1
+/ip firewall filter add action=drop chain=input comment="Drop Another INPUT"
+/ip firewall nat add action=masquerade chain=srcnat out-interface=ether1 src-address=172.16.22.0/24
+/ip service set telnet disabled=yes
+/ip service set ftp disabled=no
+/ip service set www disabled=yes
+/ip service set ssh address=172.16.22.0/24
+/ip service set api disabled=yes
+/ip service set winbox address=172.16.22.0/24
+/ip service set api-ssl disabled=yes
+/ip ssh set strong-crypto=yes
+/ip upnp interfaces add interface=ether1 type=external
+/ip upnp interfaces add interface=ether2 type=internal
+/ip upnp interfaces add interface=ether3 type=internal
+/ip upnp interfaces add interface=ether4 type=internal
+/ip upnp interfaces add interface=ether5 type=internal
+/ip upnp interfaces add interface=bridge-local type=internal
+/system clock set time-zone-name=Europe/Simferopol
+/system clock manual set dst-end="jan/01/2021 00:00:00" time-zone=+03:00
+/system identity set name=MikroTik
+/system logging add topics=info,account,async
+/system ntp client set enabled=yes primary-ntp=91.236.251.5 secondary-ntp=91.236.251.12
+/system scheduler add interval=1w name="week reboot" on-event="/system reboot" policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive start-date=may/01/2021 start-time=23:00:00
+/system script add dont-require-permissions=no name=auto_save_via_script owner=mrovaapps policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive source="{\r\
+    \n:log info \"Starting Backup Script...\";\r\
+    \n:local sysname [/system identity get name];\r\
+    \n:local sysver [/system package get system version];\r\
+    \n:log info \"Flushing DNS cache...\";\r\
+    \n/ip dns cache flush;\r\
+    \n:delay 2;\r\
+    \n:log info \"Deleting last Backups...\";\r\
+    \n:foreach i in=[/file find] do={:if ([:typeof [:find [/file get \$i name] \\\r\
+    \n\"\$sysname-backup-\"]]!=\"nil\") do={/file remove \$i}};\r\
+    \n:delay 2;\r\
+    \n:local smtpserv [:resolve \"mail.kulyev.ru\"];\r\
+    \n:local Eaccount \"someaddress@kulyev.ru\";\r\
+    \n:local pass \"somepasswd\";\r\
+    \n:local backupfile (\"\$sysname-backup-\" . \\\r\
+    \n[:pick [/system clock get date] 7 11] . [:pick [/system \\\r\
+    \nclock get date] 0 3] . [:pick [/system clock get date] 4 6] . \".backup\");\r\
+    \n:log info \"Creating new Full Backup file...\";\r\
+    \n/system backup save name=\$backupfile;\r\
+    \n:delay 2;\r\
+    \n:log info \"Sending Full Backup file via E-mail...\";\r\
+    \n/tool e-mail send from=\"<\$Eaccount>\" to=\$Eaccount server=\$smtpserv \\\r\
+    \nport=587 user=\$Eaccount password=\$pass start-tls=yes file=\$backupfile \\\r\
+    \nsubject=(\"\$sysname Full Backup (\" . [/system clock get date] . \")\") \\\r\
+    \nbody=(\"\$sysname full Backup file see in attachment.\\nRouterOS version: \\\r\
+    \n\$sysver\\nTime and Date stamp: \" . [/system clock get time] . \" \" . \\\r\
+    \n[/system clock get date]);\r\
+    \n:delay 5;\r\
+    \n:local exportfile (\"\$sysname-backup-\" . \\\r\
+    \n[:pick [/system clock get date] 7 11] . [:pick [/system \\\r\
+    \nclock get date] 0 3] . [:pick [/system clock get date] 4 6] . \".rsc\");\r\
+    \n:log info \"Creating new Setup Script file...\";\r\
+    \n/export terse file=\$exportfile;\r\
+    \n:delay 2;\r\
+    \n:log info \"Sending Setup Script file via E-mail...\";\r\
+    \n/tool e-mail send from=\"<\$Eaccount>\" to=\$Eaccount server=\$smtpserv \\\r\
+    \nport=587 user=\$Eaccount password=\$pass start-tls=yes file=\$exportfile \\\r\
+    \nsubject=(\"\$sysname Setup Script Backup (\" . [/system clock get date] . \\\r\
+    \n\")\") body=(\"\$sysname Setup Script file see in attachment.\\nRouterOS \\\r\
+    \nversion: \$sysver\\nTime and Date stamp: \" . [/system clock get time] . \" \\\r\
+    \n\" . [/system clock get date]);\r\
+    \n:delay 5;\r\
+    \n:log info \"All System Backups emailed successfully.\\nBackuping completed.\";\r\
+    \n}"
+/tool bandwidth-server set enabled=no
+/tool graphing interface add
+/tool graphing queue add
+/tool graphing resource add
+/tool graphing resource add
+/tool mac-server set allowed-interface-list=none
+/tool mac-server mac-winbox set allowed-interface-list=none
+/tool mac-server ping set enabled=no
